@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, Clock3, Compass, ExternalLink, MapPin, Menu, Search, Sparkles, Ticket, Users, X } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://event-80ny.onrender.com').replace(/\/$/, '');
+const PROFILE_STORAGE_KEY = 'campus-pulse-attendee-email';
 const CATEGORIES = ['All events', 'Tech', 'Arts', 'Career', 'Campus Life', 'Sports'];
 const FALLBACK_IMAGES = [
   'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1000&q=85',
@@ -10,11 +11,7 @@ const FALLBACK_IMAGES = [
   'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1000&q=85',
 ];
 
-function getProfileId() {
-  let id = localStorage.getItem('campus-pulse-user-id');
-  if (!id) { id = crypto.randomUUID(); localStorage.setItem('campus-pulse-user-id', id); }
-  return id;
-}
+function getProfileEmail() { return localStorage.getItem(PROFILE_STORAGE_KEY) || ''; }
 function pick(event, keys, fallback = '') {
   for (const key of keys) if (event?.[key] !== undefined && event[key] !== null && event[key] !== '') return event[key];
   return fallback;
@@ -43,14 +40,14 @@ function Brand() {
   return <a className="brand" href="#browse" aria-label="Campus Pulse home"><span className="brand-mark"><Sparkles size={20} strokeWidth={2.2} /></span><span><b>campus pulse</b><small>YOUR CAMPUS, IN MOTION</small></span></a>;
 }
 
-function Header({ view, setView, profileId, onProfileChange }) {
+function Header({ view, setView, profileEmail, onProfileChange }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return <header className="topbar"><div className="topbar-inner"><Brand />
     <nav className={menuOpen ? 'nav nav-open' : 'nav'}>
       <button className={view === 'browse' ? 'nav-link active' : 'nav-link'} onClick={() => { setView('browse'); setMenuOpen(false); }}>Discover</button>
       <button className={view === 'registrations' ? 'nav-link active' : 'nav-link'} onClick={() => { setView('registrations'); setMenuOpen(false); }}>My tickets</button>
     </nav>
-    <div className="top-actions"><button className="profile-chip" title={`Profile ID: ${profileId}. Click to change.`} onClick={onProfileChange}><span className="avatar">{profileId.slice(0, 1).toUpperCase()}</span><span className="profile-label">My profile</span><ChevronDown size={15} /></button><button className="mobile-menu" aria-label="Toggle menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button></div>
+    <div className="top-actions"><button className="profile-chip" title={profileEmail || 'Add your attendee email'} onClick={onProfileChange}><span className="avatar">{profileEmail ? profileEmail.slice(0, 1).toUpperCase() : '?'}</span><span className="profile-label">{profileEmail || 'Add email'}</span><ChevronDown size={15} /></button><button className="mobile-menu" aria-label="Toggle menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button></div>
   </div></header>;
 }
 
@@ -82,8 +79,34 @@ function EventDialog({ event, onClose, onRegister, busy, registered }) {
   return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="event-modal" role="dialog" aria-modal="true" aria-label={eventTitle(event)}><button className="modal-close" onClick={onClose} aria-label="Close"><X size={20} /></button><div className="modal-photo"><img src={pick(event, ['image_url', 'image', 'cover_image', 'banner_url'], FALLBACK_IMAGES[0])} alt="" /></div><div className="modal-body"><span className="eyebrow">{eventCategory(event)} · {pick(event, ['department', 'organizer', 'host'], 'CAMPUS COMMUNITY')}</span><h2>{eventTitle(event)}</h2><div className="modal-facts"><span><CalendarDays />{formatDate(date)}{pick(event, ['time', 'start_time'], '') && ` · ${pick(event, ['time', 'start_time'])}`}</span><span><MapPin />{pick(event, ['venue', 'location', 'building'], 'Location to be announced')}</span></div><p>{pick(event, ['description', 'details', 'summary'], 'Join your campus community for this event.')}</p><div className="modal-bottom"><small><Users size={15} />{pick(event, ['capacity'], 'Open')} {event.capacity ? 'total spots' : 'for all students'}</small><button className={registered ? 'button button-registered' : 'button'} disabled={busy || registered} onClick={() => onRegister(event)}>{busy ? 'Joining…' : registered ? <><Check size={17} /> You’re going</> : <>Reserve my spot <ArrowRight size={17} /></>}</button></div></div></section></div>;
 }
 
+function RegistrationDialog({ event, initialEmail, busy, error, onClose, onSubmit }) {
+  const [email, setEmail] = useState(initialEmail);
+  if (!event) return null;
+  return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}><section className="registration-modal" role="dialog" aria-modal="true" aria-labelledby="registration-title">
+    <button className="modal-close" onClick={onClose} aria-label="Close" disabled={busy}><X size={20} /></button>
+    <div className="registration-heading"><span className="eyebrow">CAMPUS PULSE · EVENT RSVP</span><h2 id="registration-title">Save your spot</h2><p>Enter the email on your attendee account. We’ll look up your profile in the event database.</p></div>
+    <div className="registration-event"><CalendarDays size={17} /><div><b>{eventTitle(event)}</b><small>{formatDate(eventDate(event))}</small></div></div>
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(email.trim().toLowerCase()); }}>
+      <label htmlFor="attendee-email">Attendee email</label>
+      <input id="attendee-email" type="email" autoComplete="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@school.edu" />
+      <small className="form-help">Use an email already listed in the attendee database.</small>
+      {error && <div className="form-error" role="alert">{error}</div>}
+      <div className="registration-actions"><button type="button" className="button button-outline" onClick={onClose} disabled={busy}>Cancel</button><button type="submit" className="button" disabled={busy}>{busy ? 'Registering…' : <>Confirm registration <ArrowRight size={16} /></>}</button></div>
+    </form>
+  </section></div>;
+}
+
+function ProfileDialog({ initialEmail, onClose, onSave }) {
+  const [email, setEmail] = useState(initialEmail);
+  return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="registration-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+    <button className="modal-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
+    <div className="registration-heading"><span className="eyebrow">YOUR CAMPUS PULSE PROFILE</span><h2 id="profile-title">Find your tickets</h2><p>Use the email on your existing attendee account. Your attendee ID is looked up automatically.</p></div>
+    <form onSubmit={(e) => { e.preventDefault(); onSave(email.trim().toLowerCase()); }}><label htmlFor="profile-email">Attendee email</label><input id="profile-email" type="email" autoComplete="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@school.edu" /><div className="registration-actions"><button type="button" className="button button-outline" onClick={onClose}>Cancel</button><button type="submit" className="button">Save email <ArrowRight size={16} /></button></div></form>
+  </section></div>;
+}
+
 export default function App() {
-  const [profileId, setProfileId] = useState(getProfileId);
+  const [profileEmail, setProfileEmail] = useState(getProfileEmail);
   const [view, setView] = useState('browse');
   const [events, setEvents] = useState([]);
   const [registrations, setRegistrations] = useState([]);
@@ -94,6 +117,9 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All events');
   const [selected, setSelected] = useState(null);
+  const [registrationEvent, setRegistrationEvent] = useState(null);
+  const [registrationError, setRegistrationError] = useState('');
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [busyId, setBusyId] = useState('');
 
   const loadEvents = async () => {
@@ -103,26 +129,21 @@ export default function App() {
     finally { setLoading(false); }
   };
   const loadRegistrations = async () => {
+    if (!profileEmail) { setRegistrations([]); setRegLoading(false); return; }
     setRegLoading(true); setError('');
-    try { const result = await api(`/api/me/registrations?user_id=${encodeURIComponent(profileId)}`); setRegistrations(Array.isArray(result) ? result : []); }
+    try { const result = await api(`/api/me/registrations?email=${encodeURIComponent(profileEmail)}`); setRegistrations(Array.isArray(result) ? result : []); }
     catch (err) { setError(friendlyError(err)); }
     finally { setRegLoading(false); }
   };
   useEffect(() => { loadEvents(); }, []);
-  useEffect(() => { if (view === 'registrations') loadRegistrations(); }, [view, profileId]);
+  useEffect(() => { loadRegistrations(); }, [profileEmail]);
 
-  const changeProfile = () => {
-    const value = window.prompt('Enter your profile UUID. A local demo UUID is used until you change it.', profileId);
-    if (value === null) return;
-    const normalized = value.trim();
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)) {
-      setNotice('Please enter a valid UUID for your profile.');
-      return;
-    }
-    localStorage.setItem('campus-pulse-user-id', normalized);
-    setProfileId(normalized);
+  const saveProfileEmail = (email) => {
+    localStorage.setItem(PROFILE_STORAGE_KEY, email);
+    setProfileEmail(email);
     setRegistrations([]);
-    setNotice('Profile updated. Your tickets will use this profile ID.');
+    setProfileDialogOpen(false);
+    setNotice('Attendee email saved. Your tickets are now linked to this account.');
   };
 
   const registeredIds = useMemo(() => new Set(registrations.map((item) => item.event_id || item.events?.id).filter(Boolean)), [registrations]);
@@ -132,20 +153,29 @@ export default function App() {
     return matchesCategory && haystack.includes(query.toLowerCase());
   }), [events, category, query]);
 
-  const register = async (event) => {
+  const openRegistration = (event) => {
+    setSelected(null);
+    setRegistrationError('');
+    setRegistrationEvent(event);
+  };
+
+  const submitRegistration = async (event, email) => {
     const id = event.id;
     if (!id) { setNotice('This event is missing an ID, so registration is unavailable.'); return; }
-    setBusyId(id); setNotice('');
+    setBusyId(id); setNotice(''); setRegistrationError('');
     try {
-      await api('/api/registrations', { method: 'POST', body: JSON.stringify({ user_id: profileId, event_id: id }) });
-      setRegistrations((current) => [...current, { event_id: id, events: event }]);
+      const created = await api('/api/registrations', { method: 'POST', body: JSON.stringify({ email, event_id: id }) });
+      localStorage.setItem(PROFILE_STORAGE_KEY, email);
+      setProfileEmail(email);
+      setRegistrations((current) => current.some((item) => item.event_id === id) ? current : [...current, { ...created, event_id: id, events: event }]);
       setNotice(`You’re on the list for ${eventTitle(event)}.`);
-    } catch (err) { setNotice(friendlyError(err)); }
+      setRegistrationEvent(null);
+    } catch (err) { setRegistrationError(friendlyError(err)); }
     finally { setBusyId(''); }
   };
 
   const registrationEvents = registrations.map((item) => item.events || events.find((event) => event.id === item.event_id)).filter(Boolean);
-  return <><Header view={view} setView={setView} profileId={profileId} onProfileChange={changeProfile} />
+  return <><Header view={view} setView={setView} profileEmail={profileEmail} onProfileChange={() => setProfileDialogOpen(true)} />
     <main className="page-shell">
       {view === 'browse' ? <>
         <div className="api-strip"><div><span className="kicker-dot" /> <b>Campus event directory</b><span className="strip-note">Live data from the University Logistics API</span></div><span className="api-endpoint"><i /> GET /api/events {error ? '(offline)' : loading ? '(loading)' : '(connected)'}</span></div>
@@ -153,11 +183,13 @@ export default function App() {
         <section className="events-section" id="events"><div className="filters"><div className="search-box"><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by event, venue, or department…" /><kbd>⌘ K</kbd></div><div className="category-row">{CATEGORIES.map((item) => <button key={item} className={category === item ? 'category active' : 'category'} onClick={() => setCategory(item)}>{item}</button>)}</div></div>
           {notice && <div className="notice" role="status"><Check size={17} />{notice}<button onClick={() => setNotice('')} aria-label="Dismiss"><X size={16} /></button></div>}
           {error && <div className="error-panel"><div><b>We couldn’t reach the event list.</b><span>{error}</span></div><button className="button button-outline" onClick={loadEvents}>Try again</button></div>}
-          {loading ? <div className="loading-grid">{[1, 2, 3].map((n) => <div className="skeleton" key={n} />)}</div> : filtered.length ? <div className="event-grid">{filtered.map((event, index) => <EventCard key={event.id || index} event={event} index={index} onOpen={setSelected} onRegister={register} busy={busyId === event.id} registered={registeredIds.has(event.id)} />)}</div> : !error && <div className="empty-state"><span className="empty-icon"><Compass /></span><h3>No events found (yet)</h3><p>Try another search or category. There’s always something around the corner.</p><button className="button button-outline" onClick={() => { setCategory('All events'); setQuery(''); }}>Clear filters</button></div>}
+          {loading ? <div className="loading-grid">{[1, 2, 3].map((n) => <div className="skeleton" key={n} />)}</div> : filtered.length ? <div className="event-grid">{filtered.map((event, index) => <EventCard key={event.id || index} event={event} index={index} onOpen={setSelected} onRegister={openRegistration} busy={busyId === event.id} registered={registeredIds.has(event.id)} />)}</div> : !error && <div className="empty-state"><span className="empty-icon"><Compass /></span><h3>No events found (yet)</h3><p>Try another search or category. There’s always something around the corner.</p><button className="button button-outline" onClick={() => { setCategory('All events'); setQuery(''); }}>Clear filters</button></div>}
         </section>
-      </> : <section className="registrations-page"><button className="back-link" onClick={() => setView('browse')}><ArrowLeft size={16} /> Back to discover</button><div className="section-kicker">YOUR CAMPUS PLANS</div><h1>My tickets<span className="title-period">.</span></h1><p className="registrations-lede">All the good things you’ve said yes to.</p>{notice && <div className="notice"><Check size={17} />{notice}</div>}{error && <div className="error-panel"><div><b>Couldn’t load your tickets.</b><span>{error}</span></div><button className="button button-outline" onClick={loadRegistrations}>Try again</button></div>}{regLoading ? <div className="loading-grid">{[1, 2].map((n) => <div className="skeleton" key={n} />)}</div> : registrationEvents.length ? <div className="event-grid">{registrationEvents.map((event, index) => <EventCard key={event.id || index} event={event} index={index} onOpen={setSelected} onRegister={register} busy={busyId === event.id} registered />)}</div> : !error && <div className="empty-state"><span className="empty-icon"><Ticket /></span><h3>Your next yes is out there.</h3><p>You haven’t registered for an event yet. Find one that feels like you.</p><button className="button" onClick={() => setView('browse')}>Explore events <ArrowRight size={16} /></button></div>}</section>}
+      </> : <section className="registrations-page"><button className="back-link" onClick={() => setView('browse')}><ArrowLeft size={16} /> Back to discover</button><div className="section-kicker">YOUR CAMPUS PLANS</div><h1>My tickets<span className="title-period">.</span></h1><p className="registrations-lede">All the good things you’ve said yes to.</p>{notice && <div className="notice"><Check size={17} />{notice}</div>}{error && <div className="error-panel"><div><b>Couldn’t load your tickets.</b><span>{error}</span></div><button className="button button-outline" onClick={loadRegistrations}>Try again</button></div>}{regLoading ? <div className="loading-grid">{[1, 2].map((n) => <div className="skeleton" key={n} />)}</div> : registrationEvents.length ? <div className="event-grid">{registrationEvents.map((event, index) => <EventCard key={event.id || index} event={event} index={index} onOpen={setSelected} onRegister={openRegistration} busy={busyId === event.id} registered />)}</div> : !error && <div className="empty-state"><span className="empty-icon"><Ticket /></span><h3>{profileEmail ? 'Your next yes is out there.' : 'Find your attendee profile.'}</h3><p>{profileEmail ? 'You haven’t registered for an event yet. Find one that feels like you.' : 'Enter the email on your attendee account to load your tickets.'}</p><button className="button" onClick={() => profileEmail ? setView('browse') : setProfileDialogOpen(true)}>{profileEmail ? <>Explore events <ArrowRight size={16} /></> : 'Enter attendee email'}</button></div>}</section>}
     </main>
     <footer className="footer"><Brand /><span>Made for all the moments that make campus, campus.</span><a href={`${API_URL}/`} target="_blank" rel="noreferrer">API status <ExternalLink size={14} /></a></footer>
-    <EventDialog event={selected} onClose={() => setSelected(null)} onRegister={register} busy={busyId === selected?.id} registered={registeredIds.has(selected?.id)} />
+    <EventDialog event={selected} onClose={() => setSelected(null)} onRegister={openRegistration} busy={busyId === selected?.id} registered={registeredIds.has(selected?.id)} />
+    <RegistrationDialog event={registrationEvent} initialEmail={profileEmail} busy={busyId === registrationEvent?.id} error={registrationError} onClose={() => setRegistrationEvent(null)} onSubmit={(email) => submitRegistration(registrationEvent, email)} />
+    {profileDialogOpen && <ProfileDialog initialEmail={profileEmail} onClose={() => setProfileDialogOpen(false)} onSave={saveProfileEmail} />}
   </>;
 }

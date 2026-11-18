@@ -11,7 +11,7 @@ npm run dev
 
 The frontend uses `https://event-80ny.onrender.com` by default. To point it at another backend, copy `.env.example` to `.env` and set `VITE_API_URL`.
 
-Browse events calls `GET /api/events`. Registration uses `POST /api/registrations`, and the My Tickets page calls `GET /api/me/registrations?user_id=...`. A UUID is generated and saved in local storage for the demo profile. Click **My profile** to replace it with an existing profile UUID.
+Browse events calls `GET /api/events`. Registration opens a form for the attendee email and calls `POST /api/registrations`; the backend looks up the corresponding existing attendee ID in the `users` table. My Tickets uses `GET /api/me/registrations?email=...`. Email is saved in local storage. The backend does not create attendee accounts, so the email must already exist in its `users` table.
 
 ## Deploy to Vercel
 

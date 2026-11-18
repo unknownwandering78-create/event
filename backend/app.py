@@ -1,4 +1,5 @@
 import os
+import re
 from uuid import UUID
 
 from dotenv import load_dotenv
@@ -43,11 +44,26 @@ def valid_uuid(value):
         return None
 
 
+def valid_email(value):
+    if not isinstance(value, str):
+        return None
+    email = value.strip().lower()
+    if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        return None
+    return email
+
+
+def user_id_for_email(email):
+    result = (supabase.table("users").select("id")
+              .eq("email", email).limit(1).execute())
+    return valid_uuid(result.data[0].get("id")) if result.data else None
+
+
 @app.get("/")
 def index():
     return jsonify(message="Events API", endpoints=[
         "/api/events", "/api/events/<id>", "/api/registrations",
-        "/api/me/registrations?user_id=<uuid>",
+        "/api/me/registrations?email=<email>",
         "/api/events/<id>/registrations",
     ])
 
@@ -74,10 +90,21 @@ def create_registration():
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return jsonify(error="Request body must be a JSON object"), 400
-    user_id = valid_uuid(body.get("user_id"))
     event_id = valid_uuid(body.get("event_id"))
-    if not user_id or not event_id:
-        return jsonify(error="user_id and event_id must be valid UUIDs"), 400
+    if not event_id:
+        return jsonify(error="event_id must be a valid UUID"), 400
+
+    if body.get("email") is not None:
+        email = valid_email(body.get("email"))
+        if not email:
+            return jsonify(error="Provide a valid email address"), 400
+        user_id = user_id_for_email(email)
+        if not user_id:
+            return jsonify(error="No attendee account was found for that email"), 404
+    else:
+        user_id = valid_uuid(body.get("user_id"))
+        if not user_id:
+            return jsonify(error="Provide an email address"), 400
 
     event_result = supabase.table("events").select("id,capacity,status").eq("id", event_id).limit(1).execute()
     if not event_result.data:
@@ -110,10 +137,14 @@ def create_registration():
 
 @app.get("/api/me/registrations")
 def my_registrations():
-    # Authentication is disabled, so the caller must supply the identity explicitly.
-    user_id = valid_uuid(request.args.get("user_id"))
+    # Resolve the attendee's existing database account from their email. Keep the
+    # UUID query parameter for older clients, but new clients should use email.
+    email = valid_email(request.args.get("email"))
+    user_id = user_id_for_email(email) if email else valid_uuid(request.args.get("user_id"))
     if not user_id:
-        return jsonify(error="Provide a valid user_id query parameter"), 400
+        if request.args.get("email"):
+            return jsonify(error="No attendee account was found for that email"), 404
+        return jsonify(error="Provide a valid email query parameter"), 400
     result = (supabase.table("registrations")
               .select("*,events(*)").eq("user_id", user_id).execute())
     return jsonify(result.data)
