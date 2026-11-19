@@ -75,11 +75,14 @@ function EventCard({ event, index, onOpen, onRegister, busy, registered }) {
   const venue = pick(event, ['venue', 'location', 'building'], 'Location to be announced');
   const date = eventDate(event);
   const status = String(pick(event, ['status'], 'Open'));
-  const closed = !['open', 'active', 'published', ''].includes(status.toLowerCase()) || remaining === 0;
+  const statusClosed = !['open', 'active', 'published', ''].includes(status.toLowerCase());
+  const atCapacity = remaining === 0;
+  const closed = statusClosed || atCapacity;
+  const availabilityText = statusClosed ? 'Closed' : atCapacity ? 'Full' : remaining !== null ? `${remaining} left` : 'Open';
   const tags = pick(event, ['tags'], []);
   const fill = capacity ? Math.min(100, (count / capacity) * 100) : 0;
   return <article className="event-card">
-    <div className="event-content"><div className="card-topline"><span className="image-tag">{eventCategory(event)}</span><span className={closed ? 'availability full' : 'availability'}><i />{closed ? 'Closed' : remaining !== null ? `${remaining} left` : 'Open'}</span></div>
+    <div className="event-content"><div className="card-topline"><span className="image-tag">{eventCategory(event)}</span><span className={closed ? 'availability full' : 'availability'}><i />{availabilityText}</span></div>
       <button className="event-title" onClick={() => onOpen(event)}>{eventTitle(event)}</button>
       <div className="event-meta"><span><MapPin size={15} />{venue}</span><span><CalendarDays size={15} />{formatDate(date)}{pick(event, ['time', 'start_time'], '') && <> <Clock3 size={14} /> {pick(event, ['time', 'start_time'])}</>}</span></div>
       <div className="department">Dept: <b>{pick(event, ['department', 'organizer', 'host'], 'Campus Community')}</b></div>
@@ -93,7 +96,10 @@ function EventCard({ event, index, onOpen, onRegister, busy, registered }) {
 function EventDialog({ event, onClose, onRegister, busy, registered }) {
   if (!event) return null;
   const date = eventDate(event);
-  return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="event-modal" role="dialog" aria-modal="true" aria-label={eventTitle(event)}><button className="modal-close" onClick={onClose} aria-label="Close"><X size={20} /></button><div className="modal-photo"><img src={pick(event, ['image_url', 'image', 'cover_image', 'banner_url'], FALLBACK_IMAGES[0])} alt="" /></div><div className="modal-body"><span className="eyebrow">{eventCategory(event)} · {pick(event, ['department', 'organizer', 'host'], 'CAMPUS COMMUNITY')}</span><h2>{eventTitle(event)}</h2><div className="modal-facts"><span><CalendarDays />{formatDate(date)}{pick(event, ['time', 'start_time'], '') && ` · ${pick(event, ['time', 'start_time'])}`}</span><span><MapPin />{pick(event, ['venue', 'location', 'building'], 'Location to be announced')}</span></div><p>{pick(event, ['description', 'details', 'summary'], 'Join your campus community for this event.')}</p><div className="modal-bottom"><small><Users size={15} />{pick(event, ['capacity'], 'Open')} {event.capacity ? 'total spots' : 'for all students'}</small><button className={registered ? 'button button-registered' : 'button'} disabled={busy || registered} onClick={() => onRegister(event)}>{busy ? 'Joining…' : registered ? <><Check size={17} /> You’re going</> : <>Reserve my spot <ArrowRight size={17} /></>}</button></div></div></section></div>;
+  const capacity = Number(pick(event, ['capacity'], 0)) || 0;
+  const count = Number(pick(event, ['registered_count'], 0)) || 0;
+  const unavailable = !['open', 'active', 'published', ''].includes(String(pick(event, ['status'], 'open')).toLowerCase()) || (capacity > 0 && count >= capacity);
+  return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="event-modal" role="dialog" aria-modal="true" aria-label={eventTitle(event)}><button className="modal-close" onClick={onClose} aria-label="Close"><X size={20} /></button><div className="modal-photo"><img src={pick(event, ['image_url', 'image', 'cover_image', 'banner_url'], FALLBACK_IMAGES[0])} alt="" /></div><div className="modal-body"><span className="eyebrow">{eventCategory(event)} · {pick(event, ['department', 'organizer', 'host'], 'CAMPUS COMMUNITY')}</span><h2>{eventTitle(event)}</h2><div className="modal-facts"><span><CalendarDays />{formatDate(date)}{pick(event, ['time', 'start_time'], '') && ` · ${pick(event, ['time', 'start_time'])}`}</span><span><MapPin />{pick(event, ['venue', 'location', 'building'], 'Location to be announced')}</span></div><p>{pick(event, ['description', 'details', 'summary'], 'Join your campus community for this event.')}</p><div className="modal-bottom"><small><Users size={15} />{capacity ? `${count} / ${capacity} registered` : 'Open to all students'}</small><button className={registered ? 'button button-registered' : 'button'} disabled={busy || registered || unavailable} onClick={() => onRegister(event)}>{busy ? 'Joining…' : registered ? <><Check size={17} /> You’re going</> : unavailable ? 'Registration closed' : <>Reserve my spot <ArrowRight size={17} /></>}</button></div></div></section></div>;
 }
 
 export default function App() {
@@ -191,6 +197,9 @@ export default function App() {
     setBusyId(id); setNotice('');
     try {
       const created = await api('/api/registrations', { method: 'POST', body: JSON.stringify({ email: selectedEmail, role: selectedRole, event_id: id }) });
+      setEvents((current) => current.map((item) => item.id === id
+        ? { ...item, registered_count: Number(item.registered_count || 0) + 1 }
+        : item));
       setRegistrations((current) => current.some((item) => item.event_id === id) ? current : [...current, { ...created, event_id: id, events: event }]);
       const label = ROLE_OPTIONS.find((role) => role.value === selectedRole)?.label || selectedRole;
       setNotice(`Registered ${selectedEmail} as ${label} for ${eventTitle(event)}.`);

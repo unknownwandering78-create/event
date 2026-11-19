@@ -1,5 +1,6 @@
 import os
 import re
+from collections import Counter
 from uuid import UUID
 
 from dotenv import load_dotenv
@@ -104,6 +105,18 @@ def index():
 @app.get("/api/events")
 def list_events():
     result = supabase.table("events").select("*").execute()
+    counts = Counter()
+    page_size = 500
+    offset = 0
+    while True:
+        registrations = (supabase.table("registrations").select("event_id")
+                         .range(offset, offset + page_size - 1).execute())
+        counts.update(row.get("event_id") for row in registrations.data if row.get("event_id"))
+        if len(registrations.data) < page_size:
+            break
+        offset += page_size
+    for event in result.data:
+        event["registered_count"] = counts.get(event.get("id"), 0)
     return jsonify(result.data)
 
 
