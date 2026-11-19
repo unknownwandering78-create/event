@@ -194,7 +194,7 @@ export default function App() {
       return;
     }
     setSelected(null);
-    setBusyId(id); setNotice('');
+    setBusyId(id); setNotice('Submitting your registration…');
     try {
       const created = await api('/api/registrations', { method: 'POST', body: JSON.stringify({ email: selectedEmail, role: selectedRole, event_id: id }) });
       setEvents((current) => current.map((item) => item.id === id
