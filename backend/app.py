@@ -144,21 +144,15 @@ def create_registration():
     if not event_id:
         return jsonify(error="event_id must be a valid UUID"), 400
 
-    if body.get("email") is not None:
-        email = valid_email(body.get("email"))
-        if not email:
-            return jsonify(error="Provide a valid email address"), 400
-        demo_role_value = body.get("role")
-        demo_role = valid_demo_role(demo_role_value) if demo_role_value is not None else None
-        if demo_role_value is not None and not demo_role:
-            return jsonify(error="role must be Student, Administrator, or Organization"), 400
-        user_id = user_id_for_email(email, demo_role)
-        if not user_id:
-            return jsonify(error="No account matches that email and selected role"), 404
-    else:
-        user_id = valid_uuid(body.get("user_id"))
-        if not user_id:
-            return jsonify(error="Provide an email address"), 400
+    email = valid_email(body.get("email"))
+    if not email:
+        return jsonify(error="Provide a valid email address"), 400
+    demo_role = valid_demo_role(body.get("role"))
+    if not demo_role:
+        return jsonify(error="role must be Student, Administrator, or Organization"), 400
+    user_id = user_id_for_email(email, demo_role)
+    if not user_id:
+        return jsonify(error="No account matches that email and selected role"), 404
 
     event_result = supabase.table("events").select("id,capacity,status").eq("id", event_id).limit(1).execute()
     if not event_result.data:
