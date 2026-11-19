@@ -24,4 +24,4 @@ SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY
 ```
 
-Do not set `VITE_API_URL` in Vercel: production uses same-origin `/api` routes. For local Vite development only, `VITE_API_URL` may override the existing Render backend URL.
+The frontend uses the existing Render backend URL by default in both local development and Vercel. Set `VITE_API_URL` only if you want the frontend to call a different public backend URL. The Flask service in this repository is also exposed through Vercel's `/api/*` route and needs `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` configured in Vercel.

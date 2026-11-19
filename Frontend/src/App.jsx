@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Compass, ExternalLink, MapPin, Menu, Search, Sparkles, Ticket, Users, X } from 'lucide-react';
 
-// Vercel serves the API from the same origin through its /api rewrite. Keep the
-// existing Render backend as the local-development fallback.
-const API_URL = (import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'https://event-80ny.onrender.com') : '').replace(/\/$/, '');
+// The existing Flask API remains hosted on Render. Keep one base URL for local
+// and Vercel deployments, while allowing an environment override when needed.
+const API_URL = (import.meta.env.VITE_API_URL || 'https://event-80ny.onrender.com').replace(/\/$/, '');
 const PROFILE_STORAGE_KEY = 'campus-pulse-attendee-email';
 const ROLE_STORAGE_KEY = 'campus-pulse-demo-role';
 const ROLE_OPTIONS = [
@@ -222,7 +222,7 @@ export default function App() {
         </section>
       </> : <section className="registrations-page"><button className="back-link" onClick={() => setView('browse')}><ArrowLeft size={16} /> Back to discover</button><div className="section-kicker">YOUR CAMPUS PLANS</div><h1>My tickets<span className="title-period">.</span></h1><p className="registrations-lede">{selectedEmail ? `Tickets for ${selectedEmail}` : 'Choose a role and database email above to view tickets.'}</p>{notice && <div className="notice"><Check size={17} />{notice}</div>}{error && <div className="error-panel"><div><b>Couldn’t load your tickets.</b><span>{error}</span></div><button className="button button-outline" onClick={loadRegistrations}>Try again</button></div>}{regLoading ? <div className="loading-grid">{[1, 2].map((n) => <div className="skeleton" key={n} />)}</div> : registrationEvents.length ? <div className="event-grid">{registrationEvents.map((event, index) => <EventCard key={event.id || index} event={event} index={index} onOpen={setSelected} onRegister={register} busy={busyId === event.id} registered />)}</div> : !error && <div className="empty-state"><span className="empty-icon"><Ticket /></span><h3>{selectedEmail ? 'Your next yes is out there.' : 'Select your demo email.'}</h3><p>{selectedEmail ? 'You haven’t registered for an event yet. Find one that feels like you.' : 'Pick one of the existing database emails from the selectors at the top of the page.'}</p><button className="button" onClick={() => { setView('browse'); document.querySelector('.demo-selectors select:last-of-type')?.focus(); }}>{selectedEmail ? <>Explore events <ArrowRight size={16} /></> : 'Choose email above'}</button></div>}</section>}
     </main>
-    <footer className="footer"><Brand /><span>Made for all the moments that make campus, campus.</span><a href={`${API_URL}/api/`} target="_blank" rel="noreferrer">API status <ExternalLink size={14} /></a></footer>
+    <footer className="footer"><Brand /><span>Made for all the moments that make campus, campus.</span><a href={`${API_URL}/`} target="_blank" rel="noreferrer">API status <ExternalLink size={14} /></a></footer>
     <EventDialog event={selected} onClose={() => setSelected(null)} onRegister={register} busy={busyId === selected?.id} registered={registeredIds.has(selected?.id)} />
   </>;
 }
