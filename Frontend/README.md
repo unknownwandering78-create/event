@@ -11,7 +11,7 @@ npm run dev
 
 The frontend uses `https://event-80ny.onrender.com` by default. To point it at another backend, copy `.env.example` to `.env` and set `VITE_API_URL`.
 
-Browse events calls `GET /api/events`. Registration opens a form for the attendee email and calls `POST /api/registrations`; the backend looks up the corresponding existing attendee ID in the `users` table. My Tickets uses `GET /api/me/registrations?email=...`. Email is saved in local storage. The backend does not create attendee accounts, so the email must already exist in its `users` table.
+Browse events calls `GET /api/events`. The demo role/email selectors call `GET /api/demo/emails?role=...`, which reads existing `users.email` and `users.role` records through the backend. Registration sends the selected email and role to `POST /api/registrations`; the backend resolves the matching `users.id` and writes the existing `registrations.user_id` and `registrations.event_id` fields. My Tickets uses `GET /api/me/registrations?email=...`. Role and email are saved in local storage. The backend does not create attendee accounts, so only existing database emails appear. Role options map to existing database roles: Student → `student`/`attendee`, Administrator → `administrator`/`admin`, and Organization → `organization`/`organizer`.
 
 ## Deploy to Vercel
 

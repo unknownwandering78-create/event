@@ -18,6 +18,12 @@ if not supabase_url or not supabase_key:
 
 supabase: Client = create_client(supabase_url, supabase_key)
 
+DEMO_ROLE_DB_VALUES = {
+    "student": {"student", "attendee"},
+    "administrator": {"administrator", "admin"},
+    "organization": {"organization", "organizer"},
+}
+
 
 @app.after_request
 def add_cors_headers(response):
@@ -53,16 +59,43 @@ def valid_email(value):
     return email
 
 
-def user_id_for_email(email):
-    result = (supabase.table("users").select("id")
+def valid_demo_role(value):
+    if not isinstance(value, str):
+        return None
+    role = value.strip().lower()
+    return role if role in DEMO_ROLE_DB_VALUES else None
+
+
+def user_id_for_email(email, demo_role=None):
+    result = (supabase.table("users").select("id,role")
               .eq("email", email).limit(1).execute())
-    return valid_uuid(result.data[0].get("id")) if result.data else None
+    if not result.data:
+        return None
+    user = result.data[0]
+    if demo_role and str(user.get("role", "")).strip().lower() not in DEMO_ROLE_DB_VALUES[demo_role]:
+        return None
+    return valid_uuid(user.get("id"))
+
+
+def user_email_role_rows():
+    # Paginate so the selector can include every database account, not just the
+    # API's default PostgREST row limit.
+    page_size = 500
+    rows = []
+    offset = 0
+    while True:
+        result = (supabase.table("users").select("email,role")
+                  .range(offset, offset + page_size - 1).execute())
+        rows.extend(result.data)
+        if len(result.data) < page_size:
+            return rows
+        offset += page_size
 
 
 @app.get("/")
 def index():
     return jsonify(message="Events API", endpoints=[
-        "/api/events", "/api/events/<id>", "/api/registrations",
+        "/api/events", "/api/events/<id>", "/api/demo/emails?role=<role>", "/api/registrations",
         "/api/me/registrations?email=<email>",
         "/api/events/<id>/registrations",
     ])
@@ -72,6 +105,23 @@ def index():
 def list_events():
     result = supabase.table("events").select("*").execute()
     return jsonify(result.data)
+
+
+@app.get("/api/demo/emails")
+def demo_emails():
+    # This public, unauthenticated endpoint is only for the professor demo UI.
+    # The publishable Supabase key and the existing RLS policies still govern reads.
+    demo_role = valid_demo_role(request.args.get("role"))
+    if not demo_role:
+        return jsonify(error="role must be Student, Administrator, or Organization"), 400
+    rows = user_email_role_rows()
+    allowed_roles = DEMO_ROLE_DB_VALUES[demo_role]
+    emails = sorted({
+        row["email"].strip().lower()
+        for row in rows
+        if row.get("email") and str(row.get("role", "")).strip().lower() in allowed_roles
+    })
+    return jsonify(role=demo_role, emails=emails)
 
 
 @app.get("/api/events/<event_id>")
@@ -98,9 +148,13 @@ def create_registration():
         email = valid_email(body.get("email"))
         if not email:
             return jsonify(error="Provide a valid email address"), 400
-        user_id = user_id_for_email(email)
+        demo_role_value = body.get("role")
+        demo_role = valid_demo_role(demo_role_value) if demo_role_value is not None else None
+        if demo_role_value is not None and not demo_role:
+            return jsonify(error="role must be Student, Administrator, or Organization"), 400
+        user_id = user_id_for_email(email, demo_role)
         if not user_id:
-            return jsonify(error="No attendee account was found for that email"), 404
+            return jsonify(error="No account matches that email and selected role"), 404
     else:
         user_id = valid_uuid(body.get("user_id"))
         if not user_id:
