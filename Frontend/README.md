@@ -15,12 +15,13 @@ Browse events calls `GET /api/events`. The demo role/email selectors call `GET /
 
 ## Deploy to Vercel
 
-This repository also contains the backend, so set Vercel's **Root Directory** to `Frontend` when importing the repository. Vercel will use `vercel.json` to build with `npm run build` and publish `dist`.
+Import the repository root so Vercel reads the root `vercel.json`. It defines two services: the Flask backend in `backend` and this Vite frontend in `Frontend`. The frontend builds with `npm run build` and publishes `dist`. Vercel routes `/api/*` to Flask and all other paths to this frontend.
 
-In the Vercel project settings, add this environment variable for Production (and Preview if desired):
+Configure these existing backend environment variables in Vercel Project Settings for Production and Preview:
 
 ```text
-VITE_API_URL=https://event-80ny.onrender.com
+SUPABASE_URL
+SUPABASE_PUBLISHABLE_KEY
 ```
 
-Vite embeds `VITE_API_URL` during the build, so redeploy after changing it. The frontend already falls back to this backend URL when the variable is unset.
+Do not set `VITE_API_URL` in Vercel: production uses same-origin `/api` routes. For local Vite development only, `VITE_API_URL` may override the existing Render backend URL.

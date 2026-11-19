@@ -94,6 +94,7 @@ def user_email_role_rows():
 
 
 @app.get("/")
+@app.get("/api/")
 def index():
     return jsonify(message="Events API", endpoints=[
         "/api/events", "/api/events/<id>", "/api/demo/emails?role=<role>", "/api/registrations",
